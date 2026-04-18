@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-black text-gray-100;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-surface/50;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-cyan-500/30 rounded-full;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-dark-surface/40 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl;
+  }
+}
