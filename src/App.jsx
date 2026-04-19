@@ -5,127 +5,86 @@ import DashboardView from './pages/DashboardView';
 import ProjectsView from './pages/ProjectsView';
 import MyTasksView from './pages/MyTasksView';
 import UsersView from './pages/UsersView';
+import NotificationsView from './pages/NotificationsView';
 import Sidebar from './components/Sidebar';
 import ToastContainer from './components/Toast';
 import LoadingSpinner from './components/LoadingSpinner';
 import GlobalBackground from './components/GlobalBackground';
-import { api } from './api/request';
+import { api, getToken, clearToken, setUnauthorizedHandler } from './api/request';
 import { showToast } from './utils/helpers';
 
 function App() {
   const [entered, setEntered] = useState(false);
   const [view, setView] = useState('overview');
-  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
-
   const [overview, setOverview] = useState(null);
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [projectDetail, setProjectDetail] = useState(null);
   const [myTasks, setMyTasks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearToken();
+      setEntered(false);
+      setCurrentUser(null);
+      showToast('登录已过期，请重新登录', 'error');
+    });
+  }, []);
 
-  const currentUser = users.find(u => u.id === currentUserId);
-
-  const refreshCoreData = useCallback(async (silent = false) => {
-    if (!silent) setIsRefreshing(true);
-    try {
-      const [overviewData, usersData, projectsData] = await Promise.all([
-        api.loadOverview(),
-        api.loadUsers(),
-        api.loadProjects(),
-      ]);
-      setOverview(overviewData);
-      setUsers(usersData);
-      setProjects(projectsData);
-
-      if (currentUserId) {
-        const tasksData = await api.loadMyTasks(currentUserId);
-        setMyTasks(tasksData);
-      }
-
-      if (selectedProjectId) {
-        try {
-          const detail = await api.loadProjectDetail(selectedProjectId);
-          setProjectDetail(detail);
-        } catch (e) {
-          setSelectedProjectId(null);
-          setProjectDetail(null);
-        }
-      }
-    } catch (error) {
-      showToast('刷新数据失败', 'error');
-    } finally {
-      if (!silent) setIsRefreshing(false);
+  useEffect(() => {
+    const token = getToken();
+    if (token) {
+      api.getCurrentUser()
+        .then(user => {
+          setCurrentUser(user);
+          setEntered(true);
+          loadInitialData(user.id);
+        })
+        .catch(() => {
+          clearToken();
+        })
+        .finally(() => setIsLoading(false));
+    } else {
+      setIsLoading(false);
     }
-  }, [currentUserId, selectedProjectId]);
+  }, []);
 
-  const handleEnter = async (user) => {
-    setCurrentUserId(user.id);
-    setEntered(true);
-    setView('overview');
-    setIsLoading(true);
+  const loadInitialData = async (userId) => {
     try {
-      const [overviewData, usersData, projectsData] = await Promise.all([
-        api.loadOverview(),
-        api.loadUsers(),
-        api.loadProjects(),
+      const [overviewData, usersData, projectsData, tasksData] = await Promise.all([
+        api.getDashboardOverview(),
+        api.getUsers(),
+        api.getProjects(),
+        api.getMyTasks(userId),
       ]);
       setOverview(overviewData);
       setUsers(usersData);
       setProjects(projectsData);
-      const tasksData = await api.loadMyTasks(user.id);
       setMyTasks(tasksData);
     } catch (error) {
       showToast('加载数据失败', 'error');
-    } finally {
-      setIsLoading(false);
     }
+  };
+
+  const handleEnter = async (user) => {
+    setCurrentUser(user);
+    setEntered(true);
+    setIsLoading(true);
+    await loadInitialData(user.id);
+    setIsLoading(false);
   };
 
   const handleLogout = () => {
+    clearToken();
     setEntered(false);
-    setCurrentUserId(null);
-    setSelectedProjectId(null);
-    setOverview(null);
-    setMyTasks([]);
-    setProjectDetail(null);
+    setCurrentUser(null);
   };
 
-  const handleSelectProject = async (projectId) => {
-    setSelectedProjectId(projectId);
-    if (projectId) {
-      try {
-        const detail = await api.loadProjectDetail(projectId);
-        setProjectDetail(detail);
-      } catch (error) {
-        showToast('加载项目详情失败', 'error');
-      }
-    } else {
-      setProjectDetail(null);
-    }
-  };
-
-  const handleDataChange = () => {
-    refreshCoreData(true);
-  };
-
-  useEffect(() => {
-    if (!entered) {
-      api.loadUsers().then(setUsers).catch(() => {});
-    }
-  }, [entered]);
-
-  if (!entered) {
-    return (
-      <>
-        <WelcomePage onEnter={handleEnter} users={users} />
-        <ToastContainer />
-      </>
-    );
-  }
+  const refreshData = useCallback(() => {
+    if (currentUser) loadInitialData(currentUser.id);
+  }, [currentUser]);
 
   if (isLoading) {
     return (
@@ -135,55 +94,45 @@ function App() {
     );
   }
 
+  if (!entered) {
+    return (
+      <>
+        <WelcomePage onEnter={handleEnter} />
+        <ToastContainer />
+      </>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-black">
       <GlobalBackground />
-      <Sidebar
-        currentView={view}
-        onViewChange={(v) => {
-          setView(v);
-          if (v !== 'projects') setSelectedProjectId(null);
-        }}
-        onLogout={handleLogout}
-        currentUser={currentUser}
-      />
+      <Sidebar currentView={view} onViewChange={setView} onLogout={handleLogout} currentUser={currentUser} />
       <main className="flex-1 overflow-auto p-8 relative z-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={view}
-            initial={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
-            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, scale: 1.05, filter: 'blur(5px)' }}
-            transition={{ duration: 0.4, ease: 'easeInOut' }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.3 }}
             className="h-full"
           >
-            {view === 'overview' && (
-              <DashboardView overview={overview} projects={projects} currentUser={currentUser} onRefresh={handleDataChange} />
-            )}
+            {view === 'overview' && <DashboardView overview={overview} onRefresh={refreshData} />}
             {view === 'projects' && (
               <ProjectsView
-                projects={projects} users={users} currentUserId={currentUserId}
-                selectedProjectId={selectedProjectId} projectDetail={projectDetail}
-                onSelectProject={handleSelectProject} onDataChange={handleDataChange}
+                projects={projects}
+                currentUser={currentUser}
+                selectedProjectId={selectedProjectId}
+                onSelectProject={setSelectedProjectId}
+                onDataChange={refreshData}
               />
             )}
-            {view === 'myTasks' && (
-              <MyTasksView tasks={myTasks} users={users} projects={projects} currentUserId={currentUserId} onDataChange={handleDataChange} />
-            )}
-            {view === 'users' && (
-              <UsersView users={users} projects={projects} onDataChange={handleDataChange} />
-            )}
+            {view === 'myTasks' && <MyTasksView tasks={myTasks} onDataChange={refreshData} />}
+            {view === 'users' && <UsersView users={users} />}
+            {view === 'notifications' && <NotificationsView />}
           </motion.div>
         </AnimatePresence>
       </main>
-      {isRefreshing && (
-        <div className="fixed bottom-4 right-4 z-40">
-          <div className="glass-panel px-4 py-2 flex items-center gap-2">
-            <LoadingSpinner size="sm" />
-            <span className="text-sm text-gray-400">同步中...</span>
-          </div>
-        </div>
-      )}
       <ToastContainer />
     </div>
   );

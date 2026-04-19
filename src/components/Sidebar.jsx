@@ -1,11 +1,12 @@
 import React from 'react';
-import { LayoutDashboard, FolderKanban, CheckSquare, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, CheckSquare, Users, LogOut, Bell } from 'lucide-react';
 
 const navItems = [
   { id: 'overview', label: '概览', icon: LayoutDashboard },
   { id: 'projects', label: '项目', icon: FolderKanban },
   { id: 'myTasks', label: '我的任务', icon: CheckSquare },
   { id: 'users', label: '用户', icon: Users },
+  { id: 'notifications', label: '通知', icon: Bell },
 ];
 
 const Sidebar = ({ currentView, onViewChange, onLogout, currentUser }) => {
@@ -17,13 +18,19 @@ const Sidebar = ({ currentView, onViewChange, onLogout, currentUser }) => {
       </div>
       {currentUser && (
         <div className="mx-4 mt-4 p-3 glass-panel rounded-xl">
-          <p className="text-sm font-medium text-white">{currentUser.name}</p>
+          <p className="text-sm font-medium text-white">{currentUser.username}</p>
           <p className="text-xs text-gray-400">{currentUser.role}</p>
         </div>
       )}
       <nav className="flex-1 px-3 py-6 space-y-1">
         {navItems.map(item => (
-          <button key={item.id} onClick={() => onViewChange(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${currentView === item.id ? 'bg-cyan-500/20 text-white border border-cyan-500/30 shadow-lg shadow-cyan-500/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+          <button
+            key={item.id}
+            onClick={() => onViewChange(item.id)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              currentView === item.id ? 'bg-cyan-500/20 text-white border border-cyan-500/30 shadow-lg shadow-cyan-500/10' : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
             <item.icon className="w-5 h-5" /> {item.label}
           </button>
         ))}

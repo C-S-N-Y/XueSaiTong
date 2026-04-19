@@ -1,25 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import AppButton from '../components/AppButton';
 import Modal from '../components/Modal';
 import { Input } from '../components/Field';
-import { api } from '../api/request';
+import { api, setToken } from '../api/request';
 import { Sparkles, ArrowRight, Users, CheckCircle, Zap, Eye, EyeOff } from 'lucide-react';
 import RotatingCrystal from '../components/RotatingCrystal';
 
 const WelcomePage = ({ onEnter }) => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-
-  // 登录表单：改成用户ID
-  const [loginForm, setLoginForm] = useState({ userId: '1' });
   const [loginLoading, setLoginLoading] = useState(false);
-
-  // 注册表单：改成用户名 + 角色
-  const [registerForm, setRegisterForm] = useState({ username: '', role: '队员' });
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
+
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [registerForm, setRegisterForm] = useState({
+    username: '', email: '', password: '', role: 'MEMBER'
+  });
 
   const canvasRef = useRef(null);
 
+  // 粒子动画
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -119,11 +121,12 @@ const WelcomePage = ({ onEnter }) => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!loginForm.userId) return;
-
+    if (!loginForm.username || !loginForm.password) return;
     setLoginLoading(true);
     try {
-      const user = await api.loginByUserId(loginForm.userId);
+      const response = await api.login(loginForm.username, loginForm.password);
+      setToken(response.token);
+      const user = await api.getCurrentUser();
       onEnter(user);
       setShowLoginModal(false);
     } catch (error) {
@@ -134,14 +137,14 @@ const WelcomePage = ({ onEnter }) => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    const { username, role } = registerForm;
-
-    if (!username || !role) return;
-
+    const { username, email, password, role } = registerForm;
+    if (!username || !email || !password) return;
     setRegisterLoading(true);
     try {
-      const createdUser = await api.register(username, role);
-      onEnter(createdUser);
+      const response = await api.register({ username, email, password, role });
+      setToken(response.token);
+      const user = await api.getCurrentUser();
+      onEnter(user);
       setShowRegisterModal(false);
     } catch (error) {
     } finally {
@@ -155,6 +158,9 @@ const WelcomePage = ({ onEnter }) => {
         <div className="absolute -top-20 -left-40 w-[800px] h-[800px] bg-cyan-500/40 rounded-full blur-[180px] animate-float-slow" style={{ mixBlendMode: 'screen' }} />
         <div className="absolute -bottom-20 -right-40 w-[800px] h-[800px] bg-fuchsia-500/40 rounded-full blur-[180px] animate-float-slow-reverse" style={{ mixBlendMode: 'screen' }} />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[500px] bg-purple-600/30 rounded-full blur-[200px] animate-pulse-slow" style={{ mixBlendMode: 'screen' }} />
+        <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 255, 255, 0.3) 2px, rgba(0, 255, 255, 0.3) 4px)`, backgroundSize: '100% 6px', animation: 'scan 8s linear infinite' }} />
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E")`, animation: 'glitch 0.3s infinite' }} />
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300ffff' fill-opacity='0.2'%3E%3Cpath d='M50 50v-8h-4v8h-8v4h8v8h4v-8h8v-4h-8zm0-40V2h-4v8h-8v4h8v8h4v-8h8V10h-8zM10 50v-8H6v8H2v4h4v8h4v-8h8v-4h-8zM10 10V2H6v8H2v4h4v8h4v-8h8v-4h-8z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`, backgroundSize: '120px 120px', animation: 'grid-flow 20s linear infinite' }} />
       </div>
 
       <canvas ref={canvasRef} className="absolute inset-0 z-[5] w-full h-full pointer-events-none" />
@@ -166,125 +172,79 @@ const WelcomePage = ({ onEnter }) => {
 
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/20 border border-cyan-400/50 backdrop-blur-sm mb-6">
           <Zap className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-medium text-cyan-300">我去你的</span>
+          <span className="text-sm font-medium text-cyan-300">AI 驱动的智能协作平台</span>
           <Sparkles className="w-4 h-4 text-fuchsia-400" />
         </div>
 
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight">
-          <span className="bg-gradient-to-r from-white via-cyan-200 to-white bg-clip-text text-transparent">
-            重塑团队协作
-          </span>
+          <span className="bg-gradient-to-r from-white via-cyan-200 to-white bg-clip-text text-transparent">重塑团队协作</span>
           <br />
-          <span className="bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">
-            从学赛通开始
-          </span>
+          <span className="bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">从学赛通开始</span>
         </h1>
 
         <p className="text-lg md:text-xl text-gray-300 max-w-2xl mb-10">
-          统一项目、任务、成员管理。
-          <br className="hidden md:block" />
+          统一项目、任务、成员管理。<br className="hidden md:block" />
           让每一步都清晰可控，让团队效率飞跃。
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 mb-16">
-          <AppButton
-            size="lg"
-            onClick={() => setShowLoginModal(true)}
-            className="min-w-[180px]"
-            style={{ background: 'linear-gradient(135deg, #00ffff 0%, #8b5cf6 100%)' }}
-          >
-            <span>登录</span>
-            <ArrowRight className="w-4 h-4 ml-2" />
+          <AppButton size="lg" onClick={() => setShowLoginModal(true)} className="min-w-[180px]" style={{ background: 'linear-gradient(135deg, #00ffff 0%, #8b5cf6 100%)' }}>
+            登录 <ArrowRight className="w-4 h-4 ml-2" />
           </AppButton>
-          <AppButton
-            size="lg"
-            variant="secondary"
-            onClick={() => setShowRegisterModal(true)}
-            className="min-w-[180px]"
-          >
+          <AppButton size="lg" variant="secondary" onClick={() => setShowRegisterModal(true)} className="min-w-[180px]">
             注册
           </AppButton>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
           <div className="glass-panel p-6 text-left">
-            <div className="w-10 h-10 rounded-lg bg-cyan-500/30 flex items-center justify-center mb-4">
-              <Users className="w-5 h-5 text-cyan-300" />
-            </div>
+            <div className="w-10 h-10 rounded-lg bg-cyan-500/30 flex items-center justify-center mb-4"><Users className="w-5 h-5 text-cyan-300" /></div>
             <h3 className="font-semibold text-white mb-2">成员协作</h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              清晰的角色分工，实时同步任务状态，让每个人都知道自己该做什么。
-            </p>
+            <p className="text-sm text-gray-300">清晰的角色分工，实时同步任务状态。</p>
           </div>
-
           <div className="glass-panel p-6 text-left">
-            <div className="w-10 h-10 rounded-lg bg-fuchsia-500/30 flex items-center justify-center mb-4">
-              <CheckCircle className="w-5 h-5 text-fuchsia-300" />
-            </div>
+            <div className="w-10 h-10 rounded-lg bg-fuchsia-500/30 flex items-center justify-center mb-4"><CheckCircle className="w-5 h-5 text-fuchsia-300" /></div>
             <h3 className="font-semibold text-white mb-2">任务追踪</h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              看板式任务管理，从待办到完成一目了然，进度尽在掌握。
-            </p>
+            <p className="text-sm text-gray-300">看板式任务管理，进度尽在掌握。</p>
           </div>
-
           <div className="glass-panel p-6 text-left">
-            <div className="w-10 h-10 rounded-lg bg-purple-500/30 flex items-center justify-center mb-4">
-              <Sparkles className="w-5 h-5 text-purple-300" />
-            </div>
+            <div className="w-10 h-10 rounded-lg bg-purple-500/30 flex items-center justify-center mb-4"><Sparkles className="w-5 h-5 text-purple-300" /></div>
             <h3 className="font-semibold text-white mb-2">数据洞察</h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              项目指标实时更新，关键数据一目了然，驱动团队高效决策。
-            </p>
+            <p className="text-sm text-gray-300">项目指标实时更新，驱动高效决策。</p>
           </div>
         </div>
       </div>
 
-      <Modal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} title="演示登录" size="sm">
+      <Modal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} title="登录" size="sm">
         <form onSubmit={handleLogin}>
-          <Input
-            label="用户 ID"
-            placeholder="请输入已有用户 ID，例如 1"
-            value={loginForm.userId}
-            onChange={(e) => setLoginForm({ userId: e.target.value })}
-            required
-          />
-          <div className="flex justify-end gap-3 mt-6">
-            <AppButton type="button" variant="secondary" onClick={() => setShowLoginModal(false)}>
-              取消
-            </AppButton>
-            <AppButton type="submit" isLoading={loginLoading}>
-              进入系统
-            </AppButton>
+          <Input label="用户名" value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} required />
+          <div className="relative">
+            <Input label="密码" type={showPassword ? 'text' : 'password'} value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} required />
+            <button type="button" className="absolute right-3 top-9 text-gray-400" onClick={() => setShowPassword(!showPassword)}>
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
-          <p className="text-xs text-gray-500 text-center mt-4">
-            当前后端未提供账号密码认证，这里使用已有用户 ID 演示进入
-          </p>
+          <div className="flex justify-end gap-3 mt-6">
+            <AppButton type="button" variant="secondary" onClick={() => setShowLoginModal(false)}>取消</AppButton>
+            <AppButton type="submit" isLoading={loginLoading}>登录</AppButton>
+          </div>
         </form>
       </Modal>
 
-      <Modal isOpen={showRegisterModal} onClose={() => setShowRegisterModal(false)} title="注册新账户" size="sm">
+      <Modal isOpen={showRegisterModal} onClose={() => setShowRegisterModal(false)} title="注册" size="sm">
         <form onSubmit={handleRegister}>
-          <Input
-            label="用户名"
-            placeholder="请输入用户名"
-            value={registerForm.username}
-            onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
-            required
-          />
-          <Input
-            label="角色"
-            placeholder="例如：队员 / 前端开发"
-            value={registerForm.role}
-            onChange={(e) => setRegisterForm({ ...registerForm, role: e.target.value })}
-            required
-          />
+          <Input label="用户名" value={registerForm.username} onChange={e => setRegisterForm({...registerForm, username: e.target.value})} required />
+          <Input label="邮箱" type="email" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} required />
+          <div className="relative">
+            <Input label="密码" type={showRegPassword ? 'text' : 'password'} value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} required />
+            <button type="button" className="absolute right-3 top-9 text-gray-400" onClick={() => setShowRegPassword(!showRegPassword)}>
+              {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          <Input label="角色" value={registerForm.role} onChange={e => setRegisterForm({...registerForm, role: e.target.value})} placeholder="MEMBER" />
           <div className="flex justify-end gap-3 mt-6">
-            <AppButton type="button" variant="secondary" onClick={() => setShowRegisterModal(false)}>
-              取消
-            </AppButton>
-            <AppButton type="submit" isLoading={registerLoading}>
-              注册并进入
-            </AppButton>
+            <AppButton type="button" variant="secondary" onClick={() => setShowRegisterModal(false)}>取消</AppButton>
+            <AppButton type="submit" isLoading={registerLoading}>注册</AppButton>
           </div>
         </form>
       </Modal>
